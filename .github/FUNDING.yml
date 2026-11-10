@@ -1,0 +1,6 @@
+# Shows the "Sponsor" button on this repository (Settings → Features → Sponsorships).
+# Both links go to Veteran Home Guardians: a direct donation, and the
+# sponsor section of the Ohio Bingo Finder partner page.
+custom:
+  - https://www.vethomeguard.org/donate
+  - https://bingo.vethomeguard.org/partners.html#sponsors
