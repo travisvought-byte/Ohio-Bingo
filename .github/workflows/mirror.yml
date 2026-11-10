@@ -1,0 +1,34 @@
+name: Mirror the Ohio Bingo Finder
+# The site is generated in travisvought-byte/vhg-veteran-resident-guide (bingo-site/).
+# This copies it here so GitHub Pages can serve it at https://bingo.vethomeguard.org/.
+on:
+  schedule:
+    - cron: '23 */3 * * *'   # every three hours
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Copy bingo-site/ from the guide
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/travisvought-byte/vhg-veteran-resident-guide "$RUNNER_TEMP/guide"
+          git -C "$RUNNER_TEMP/guide" sparse-checkout set bingo-site
+          src="$RUNNER_TEMP/guide/bingo-site"
+          test -s "$src/index.html"
+          test "$(cat "$src/CNAME")" = "bingo.vethomeguard.org"
+          rsync -a --delete --exclude '.git/' --exclude '.github/' --exclude '.gitattributes' "$src/" ./
+          echo "GUIDE_SHA=$(git -C "$RUNNER_TEMP/guide" rev-parse --short HEAD)" >> "$GITHUB_ENV"
+      - name: Commit if anything changed
+        run: |
+          git add -A
+          if git diff --cached --quiet; then echo "Already up to date."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Mirror bingo-site from vhg-veteran-resident-guide@${GUIDE_SHA}"
+          git push
