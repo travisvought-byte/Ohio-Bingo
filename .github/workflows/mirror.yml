@@ -5,6 +5,11 @@ on:
   schedule:
     - cron: '23 */3 * * *'   # every three hours
   workflow_dispatch:
+    inputs:
+      all:
+        description: Send every Find Bingo page to IndexNow, not only the changed ones
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -18,10 +23,12 @@ jobs:
       - name: Copy bingo-site/ from the guide
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/travisvought-byte/vhg-veteran-resident-guide "$RUNNER_TEMP/guide"
-          git -C "$RUNNER_TEMP/guide" sparse-checkout set bingo-site
+          git -C "$RUNNER_TEMP/guide" sparse-checkout set bingo-site scripts
           src="$RUNNER_TEMP/guide/bingo-site"
           test -s "$src/index.html"
           test "$(cat "$src/CNAME")" = "bingo.vethomeguard.org"
+          # Keep the live Find Bingo pages so the IndexNow step can tell which ones changed.
+          cp -a findbingo "$RUNNER_TEMP/before-findbingo"
           rsync -a --delete --exclude '.git/' --exclude '.github/' --exclude '.gitattributes' "$src/" ./
           echo "GUIDE_SHA=$(git -C "$RUNNER_TEMP/guide" rev-parse --short HEAD)" >> "$GITHUB_ENV"
       - name: Commit if anything changed
@@ -32,3 +39,19 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Mirror bingo-site from vhg-veteran-resident-guide@${GUIDE_SHA}"
           git push
+          echo "PUSHED=1" >> "$GITHUB_ENV"
+      # IndexNow tells Bing (and Yandex, Seznam, Naver) which Find Bingo pages changed, so they pick them up within days.
+      # No account: the key file at https://www.findbingo.org/<key>.txt is written by the guide's scripts/findbingo_site.py.
+      # Only pages listed in findbingo/sitemap.xml are sent.
+      - name: Tell search engines about changed Find Bingo pages
+        if: env.PUSHED == '1' || inputs.all
+        env:
+          KEY: cd2ba11c432756dd60823a42f8614441
+          ALL: ${{ inputs.all }}
+        run: |
+          sleep 180   # give www.findbingo.org time to publish this push
+          if [ "$ALL" = "true" ]; then
+            python3 "$RUNNER_TEMP/guide/scripts/indexnow.py" --host www.findbingo.org --key "$KEY" --root findbingo --all --wait
+          else
+            python3 "$RUNNER_TEMP/guide/scripts/indexnow.py" --host www.findbingo.org --key "$KEY" --root findbingo --compare "$RUNNER_TEMP/before-findbingo" --wait
+          fi
