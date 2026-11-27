@@ -3,7 +3,8 @@ name: Mirror the Ohio Bingo Finder
 # This copies it here so GitHub Pages can serve it at https://bingo.vethomeguard.org/.
 on:
   schedule:
-    - cron: '23 */3 * * *'   # every three hours
+    # GitHub often skips scheduled runs, so ask every hour; a run with nothing new ends in seconds.
+    - cron: '23 * * * *'
   workflow_dispatch:
     inputs:
       all:
